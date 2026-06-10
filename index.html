@@ -12,7 +12,7 @@
     --border: #2a3444;
     --teal: #00b49a;
     --teal-dim: #00b49a22;
-    --teal-mid: #00b49a55;
+    --teal-mid: #00b49a55;h
     --amber: #f0a500;
     --red: #e05252;
     --green: #3fb950;
@@ -333,6 +333,10 @@
   /* ── TREND LINE ── */
   .trend-wrap { position: relative; }
   svg.trend-svg { display: block; }
+    .refresh-btn { display:flex; align-items:center; gap:7px; background:var(--teal); color:#0d1117; border:none; border-radius:7px; padding:8px 16px; font-size:13px; font-weight:700; cursor:pointer; transition:opacity .2s,transform .1s; white-space:nowrap; }
+    .refresh-btn:hover { opacity:.85; } .refresh-btn:active { transform:scale(.97); }
+    .refresh-btn svg { transition:transform .7s ease; } .refresh-btn.spinning svg { transform:rotate(360deg); }
+    .last-updated { font-size:11px; color:var(--muted); margin-top:2px; text-align:right; }
 </style>
 </head>
 <body>
@@ -345,6 +349,13 @@
       <div class="header-sub">Ati-US ERP · Live data · USD only</div>
     </div>
   </div>
+    <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
+          <button class="refresh-btn" onclick="refreshDashboard()" id="refreshBtn">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>svg>
+                  Refresh Data
+          </button>button>
+          <span class="last-updated" id="lastUpdated">Last updated: Jun 10, 2026</span>span>
+    </div>
   <div class="header-meta">
     <div>As of <strong id="today-date"></strong></div>
     <div>106 open invoices · 18 customers</div>
@@ -1416,6 +1427,7 @@ document.addEventListener('DOMContentLoaded', () => {
   renderCollections();
   renderMIS();
 });
-</script>
+  function refreshDashboard(){const btn=document.getElementById('refreshBtn');btn.classList.add('spinning');btn.disabled=true;const txt=btn.childNodes[btn.childNodes.length-1];if(txt&&txt.nodeType===3)txt.textContent=' Refreshing...';setTimeout(()=>{window.location.reload(true);},700);}
+  </script>
 </body>
 </html>
