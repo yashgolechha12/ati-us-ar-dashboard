@@ -54,21 +54,21 @@ export default function DashboardPage() {
         return (
                 <div style={{ minHeight: '100vh', background: '#0d1117', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
                           <div style={{ width: 40, height: 40, border: '3px solid #21262d', borderTop: '3px solid #00b49a', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
-                          <div style={{ color: '#64748b', fontSize: 14 }}>Loading dashboard data...</div>div>
-                          <style>{` @keyframes spin { to { transform: rotate(360deg); } } `}</style>style>
-                </div>div>
+                          <div style={{ color: '#64748b', fontSize: 14 }}>Loading dashboard data...</div>
+                          <style>{` @keyframes spin { to { transform: rotate(360deg); } } `}
+                </div>
               );
   }
   
     if (error && !stats) {
           return (
                   <div style={{ minHeight: '100vh', background: '#0d1117', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
-                          <div style={{ color: '#ef4444', fontSize: 18, fontWeight: 600 }}>Failed to load data</div>div>
-                          <div style={{ color: '#8b949e', fontSize: 14, maxWidth: 500, textAlign: 'center' }}>{error}</div>div>
+                          <div style={{ color: '#ef4444', fontSize: 18, fontWeight: 600 }}>Failed to load data</div>
+                          <div style={{ color: '#8b949e', fontSize: 14, maxWidth: 500, textAlign: 'center' }}>{error}</div>
                           <button onClick={fetchData} style={{ marginTop: 8, padding: '8px 20px', background: '#00b49a', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 600 }}>
                                     Retry
-                          </button>button>
-                  </div>div>
+                          </button>
+                  </div>
                 );
     }
   
@@ -88,7 +88,7 @@ export default function DashboardPage() {
                   {stats && activeTab === 2 && <TabDrilldown stats={stats} selectedCustomer={drilldownCustomer} setSelectedCustomer={setDrilldownCustomer} />}
                   {stats && activeTab === 3 && <TabCollections stats={stats} />}
                   {stats && activeTab === 4 && <TabMIS stats={stats} />}
-                </main>main>
-          </div>div>
+                </main>
+          </div>
         );
-}</style>
+}
