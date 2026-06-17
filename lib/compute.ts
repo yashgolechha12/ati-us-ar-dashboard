@@ -42,7 +42,7 @@ export function computeDashboardStats(data: DashboardData): DashboardStats {
   const agingBuckets = { current: 0, days1_30: 0, days31_60: 0, days61_90: 0, days91plus: 0 };
   let totalOutstanding = 0;
   let totalOverdue = 0;
-  const customerMap = new Map();
+  const customerMap = new Map<string, { outstanding: number; overdue: number; lastPayment: string | null }>();
 
   for (const inv of data.invoices) {
     const outstanding = inv.outstanding_amount ?? 0;
@@ -58,7 +58,7 @@ export function computeDashboardStats(data: DashboardData): DashboardStats {
     else agingBuckets.days91plus += outstanding;
     const cust = inv.customer;
     if (!customerMap.has(cust)) customerMap.set(cust, { outstanding: 0, overdue: 0, lastPayment: null });
-    const c = customerMap.get(cust);
+    const c = customerMap.get(cust)!;
     c.outstanding += outstanding;
     if (daysOverdue > 0) c.overdue += outstanding;
   }
@@ -73,9 +73,9 @@ export function computeDashboardStats(data: DashboardData): DashboardStats {
   const topCustomers = Array.from(customerMap.entries())
     .map(([name, v]) => ({ name, ...v }))
     .sort((a, b) => b.outstanding - a.outstanding)
-    .slice(0, 10);
+    .slice(0, 20);
 
-  const monthlyMap = new Map();
+  const monthlyMap = new Map<string, { invoiced: number; collected: number }>();
   for (let i = 5; i >= 0; i--) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
     const key = d.toISOString().slice(0, 7);
@@ -83,11 +83,11 @@ export function computeDashboardStats(data: DashboardData): DashboardStats {
   }
   for (const inv of data.invoices) {
     const key = inv.posting_date?.slice(0, 7);
-    if (key && monthlyMap.has(key)) monthlyMap.get(key).invoiced += inv.grand_total ?? 0;
+    if (key && monthlyMap.has(key)) monthlyMap.get(key)!.invoiced += inv.grand_total ?? 0;
   }
   for (const pe of data.paymentEntries) {
     const key = pe.posting_date?.slice(0, 7);
-    if (key && monthlyMap.has(key)) monthlyMap.get(key).collected += pe.paid_amount ?? 0;
+    if (key && monthlyMap.has(key)) monthlyMap.get(key)!.collected += pe.paid_amount ?? 0;
   }
   const monthly = Array.from(monthlyMap.entries()).map(([month, v]) => ({ month, ...v }));
 
@@ -110,13 +110,13 @@ export function computeDashboardStats(data: DashboardData): DashboardStats {
       return due && due < now;
     })
     .map(inv => {
-      const due = new Date(inv.due_date);
+      const due = new Date(inv.due_date as string);
       const daysOverdue = Math.floor((now.getTime() - due.getTime()) / 86400000);
       return {
         customer: inv.customer,
         invoiceNo: inv.name,
         amount: inv.outstanding_amount ?? 0,
-        dueDate: inv.due_date,
+        dueDate: inv.due_date as string,
         daysOverdue,
         contact: inv.contact_email ?? null,
       };
