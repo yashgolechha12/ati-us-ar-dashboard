@@ -84,7 +84,7 @@ export default function TabCustomerAging({ stats, initialFilter, onFilterUsed, o
       let diff = 0;
       if (sortKey === 'outstanding') diff = b.outstanding - a.outstanding;
       else if (sortKey === 'b90p') diff = b.aging.b90p - a.aging.b90p;
-      else if (sortKey === 'openInvoices') diff = b.openIny�ices - a.openInvoices;
+      else if (sortKey === 'openInvoices') diff = b.openInvoices - a.openInvoices;
       else diff = a.customer.localeCompare(b.customer);
       return sortAsc ? -diff : diff;
     });
