@@ -2,7 +2,19 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
 export function middleware(request: NextRequest) {
-  // Dashboard is publicly accessible - ERP credentials are protected server-side
+  const { pathname } = request.nextUrl;
+  
+  // Allow login page and API routes
+  if (pathname.startsWith('/login') || pathname.startsWith('/api/')) {
+    return NextResponse.next();
+  }
+  
+  // Check for auth cookie
+  const authCookie = request.cookies.get('auth-session');
+  if (!authCookie || authCookie.value !== 'authenticated') {
+    return NextResponse.redirect(new URL('/login', request.url));
+  }
+  
   return NextResponse.next();
 }
 
