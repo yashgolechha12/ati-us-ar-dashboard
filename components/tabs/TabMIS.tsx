@@ -1,137 +1,221 @@
+'use client';
+import { useState } from 'react';
 import type { DashboardStats } from '@/lib/compute';
+import { fmtCurrency, fmtPct } from '@/components/ui/formatters';
+import {
+  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, LineChart, Line
+} from 'recharts';
 
 interface Props {
   stats: DashboardStats;
 }
 
-const fmt = (n: number) =>
-  new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(n);
-
 export default function TabMIS({ stats }: Props) {
+  const [effToggle, setEffToggle] = useState<'monthly' | '3m'>('monthly');
+  const [highlightCol, setHighlightCol] = useState<string | null>(null);
   const monthly = stats.monthly;
+
+  // Compute 3M rolling efficiency
+  const withRolling = monthly.map((m, i) => {
+    const window3 = monthly.slice(Math.max(0, i - 2), i + 1);
+    const invoiced3m = window3.reduce((s, x) => s + x.invoiced, 0);
+    const collected3m = window3.reduce((s, x) => s + x.collected, 0);
+    const eff3m = invoiced3m > 0 ? (collected3m / invoiced3m) * 100 : 0;
+    return { ...m, eff3m };
+  });
+
+  const getEffColor = (eff: number) => {
+    if (eff >= 70) return '#34d399';
+    if (eff >= 40) return '#fbbf24';
+    return '#f87171';
+  };
+
   const totalInvoiced = monthly.reduce((s, m) => s + m.invoiced, 0);
   const totalCollected = monthly.reduce((s, m) => s + m.collected, 0);
-  const overallRate = totalInvoiced > 0 ? Math.round((totalCollected / totalInvoiced) * 100) : 0;
-  const maxInvoiced = Math.max(...monthly.map(m => m.invoiced), 1);
+  const closingAR = monthly.length > 0 ? monthly[monthly.length - 1].closingAR : 0;
+  const avgDSO = monthly.length > 0 ? Math.round(monthly.reduce((s, m) => s + m.dso, 0) / monthly.length) : 0;
+
+  const chartData = withRolling.map(m => ({
+    name: m.label,
+    DSO: m.dso,
+    Efficiency: effToggle === 'monthly' ? parseFloat(m.collectionEfficiency.toFixed(1)) : parseFloat(m.eff3m.toFixed(1)),
+  }));
 
   return (
-    <div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 20 }}>
-        <div style={{ background: '#161b22', border: '1px solid #21262d', borderRadius: 8, padding: 16 }}>
-          <div style={{ fontSize: 11, color: '#8b949e', textTransform: 'uppercase', marginBottom: 6 }}>Total Invoiced (6mo)</div>
-          <div style={{ fontSize: 22, fontWeight: 700, color: '#e6edf3' }}>{fmt(totalInvoiced)}</div>
-        </div>
-        <div style={{ background: '#161b22', border: '1px solid #21262d', borderRadius: 8, padding: 16 }}>
-          <div style={{ fontSize: 11, color: '#8b949e', textTransform: 'uppercase', marginBottom: 6 }}>Total Collected (6mo)</div>
-          <div style={{ fontSize: 22, fontWeight: 700, color: '#00b49a' }}>{fmt(totalCollected)}</div>
-        </div>
-        <div style={{ background: '#161b22', border: '1px solid #21262d', borderRadius: 8, padding: 16 }}>
-          <div style={{ fontSize: 11, color: '#8b949e', textTransform: 'uppercase', marginBottom: 6 }}>Overall Collection Rate</div>
-          <div style={{ fontSize: 22, fontWeight: 700, color: overallRate >= 80 ? '#51cf66' : '#ff6b6b' }}>{overallRate}%</div>
+    <div className="space-y-4 pt-4">
+      {/* Summary tiles */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <button
+          onClick={() => setHighlightCol(highlightCol === 'invoiced' ? null : 'invoiced')}
+          className="p-4 rounded-xl text-left transition-all"
+          style={{
+            backgroundColor: highlightCol === 'invoiced' ? '#60a5fa22' : '#161d2b',
+            border: `1px solid ${highlightCol === 'invoiced' ? '#60a5fa66' : '#1e293b'}`,
+          }}
+        >
+          <p className="text-xs" style={{color: '#64748b'}}>Total Invoiced</p>
+          <p className="text-2xl font-bold font-mono mt-1" style={{color: '#60a5fa'}}>{fmtCurrency(totalInvoiced, true)}</p>
+        </button>
+        <button
+          onClick={() => setHighlightCol(highlightCol === 'collected' ? null : 'collected')}
+          className="p-4 rounded-xl text-left transition-all"
+          style={{
+            backgroundColor: highlightCol === 'collected' ? '#00b49a22' : '#161d2b',
+            border: `1px solid ${highlightCol === 'collected' ? '#00b49a66' : '#1e293b'}`,
+          }}
+        >
+          <p className="text-xs" style={{color: '#64748b'}}>Total Collected</p>
+          <p className="text-2xl font-bold font-mono mt-1" style={{color: '#00b49a'}}>{fmtCurrency(totalCollected, true)}</p>
+        </button>
+        <button
+          onClick={() => setHighlightCol(highlightCol === 'ar' ? null : 'ar')}
+          className="p-4 rounded-xl text-left transition-all"
+          style={{
+            backgroundColor: highlightCol === 'ar' ? '#f8717122' : '#161d2b',
+            border: `1px solid ${highlightCol === 'ar' ? '#f8717166' : '#1e293b'}`,
+          }}
+        >
+          <p className="text-xs" style={{color: '#64748b'}}>Closing AR</p>
+          <p className="text-2xl font-bold font-mono mt-1" style={{color: '#f87171'}}>{fmtCurrency(closingAR, true)}</p>
+        </button>
+        <button
+          onClick={() => setHighlightCol(highlightCol === 'eff' ? null : 'eff')}
+          className="p-4 rounded-xl text-left transition-all"
+          style={{
+            backgroundColor: highlightCol === 'eff' ? '#fbbf2422' : '#161d2b',
+            border: `1px solid ${highlightCol === 'eff' ? '#fbbf2466' : '#1e293b'}`,
+          }}
+        >
+          <p className="text-xs" style={{color: '#64748b'}}>Avg DSO</p>
+          <p className="text-2xl font-bold font-mono mt-1" style={{color: '#fbbf24'}}>{avgDSO}d</p>
+        </button>
+      </div>
+
+      {/* Toggle */}
+      <div className="flex items-center gap-2">
+        <span className="text-xs" style={{color: '#64748b'}}>Collection Efficiency:</span>
+        {(['monthly', '3m'] as const).map(k => (
+          <button
+            key={k}
+            onClick={() => setEffToggle(k)}
+            className="text-xs px-3 py-1 rounded-lg"
+            style={{
+              backgroundColor: effToggle === k ? '#00b49a22' : 'transparent',
+              color: effToggle === k ? '#00b49a' : '#64748b',
+              border: `1px solid ${effToggle === k ? '#00b49a44' : '#1e293b'}`,
+            }}
+          >
+            {k === 'monthly' ? 'Monthly' : '3M Rolling'}
+          </button>
+        ))}
+      </div>
+
+      {/* MIS Table */}
+      <div className="rounded-xl overflow-hidden" style={{ backgroundColor: '#161d2b', border: '1px solid #1e293b' }}>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr style={{ borderBottom: '1px solid #1e293b' }}>
+                <th className="text-left px-4 py-3 text-xs font-medium" style={{ color: '#64748b' }}>Month</th>
+                <th className={`text-right px-3 py-3 text-xs font-medium`}
+                  style={{ color: highlightCol === 'invoiced' ? '#60a5fa' : '#64748b' }}>Invoiced</th>
+                <th className="text-right px-3 py-3 text-xs font-medium"
+                  style={{ color: highlightCol === 'collected' ? '#00b49a' : '#64748b' }}>Collected</th>
+                <th className="text-right px-3 py-3 text-xs font-medium"
+                  style={{ color: highlightCol === 'ar' ? '#f87171' : '#64748b' }}>Closing AR</th>
+                <th className="text-right px-3 py-3 text-xs font-medium"
+                  style={{ color: highlightCol === 'eff' ? '#fbbf24' : '#64748b' }}>
+                  {effToggle === 'monthly' ? 'Efficiency' : '3M Efficiency'}
+                </th>
+                <th className="text-right px-4 py-3 text-xs font-medium" style={{ color: '#64748b' }}>Invoices</th>
+              </tr>
+            </thead>
+            <tbody>
+              {withRolling.map(m => {
+                const eff = effToggle === 'monthly' ? m.collectionEfficiency : m.eff3m;
+                return (
+                  <tr key={m.month} className="hover:bg-slate-800 transition-colors"
+                    style={{ borderBottom: '1px solid #0b0f14' }}>
+                    <td className="px-4 py-3 text-xs font-mono font-medium" style={{ color: '#94a3b8' }}>{m.label}</td>
+                    <td className="px-3 py-3 text-right text-xs font-mono"
+                      style={{ color: highlightCol === 'invoiced' ? '#60a5fa' : '#e2e8f0', fontWeight: highlightCol === 'invoiced' ? 600 : 400 }}>
+                      {fmtCurrency(m.invoiced, true)}
+                    </td>
+                    <td className="px-3 py-3 text-right text-xs font-mono"
+                      style={{ color: highlightCol === 'collected' ? '#00b49a' : '#e2e8f0', fontWeight: highlightCol === 'collected' ? 600 : 400 }}>
+                      {fmtCurrency(m.collected, true)}
+                    </td>
+                    <td className="px-3 py-3 text-right text-xs font-mono"
+                      style={{ color: highlightCol === 'ar' ? '#f87171' : '#e2e8f0', fontWeight: highlightCol === 'ar' ? 600 : 400 }}>
+                      {fmtCurrency(m.closingAR, true)}
+                    </td>
+                    <td className="px-3 py-3 text-right">
+                      <span className="text-xs font-mono px-2 py-0.5 rounded-full"
+                        style={{ backgroundColor: getEffColor(eff) + '22', color: getEffColor(eff) }}>
+                        {fmtPct(eff)}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-right text-xs font-mono" style={{ color: '#64748b' }}>{m.invoiceCount}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       </div>
 
-      <div style={{ background: '#161b22', border: '1px solid #21262d', borderRadius: 8, padding: 20, marginBottom: 16 }}>
-        <h3 style={{ margin: '0 0 16px', color: '#e6edf3', fontSize: 14, fontWeight: 600 }}>Monthly Bar Chart</h3>
-        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 12, height: 180 }}>
-          {monthly.map((m, i) => {
-            const invoicedHeight = Math.round((m.invoiced / maxInvoiced) * 160);
-            const collectedHeight = m.invoiced > 0 ? Math.round((m.collected / maxInvoiced) * 160) : 0;
-            const label = m.month.slice(0, 7);
-            return (
-              <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
-                <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, height: 160 }}>
-                  <div
-                    title={`Invoiced: ${fmt(m.invoiced)}`}
-                    style={{
-                      width: 18, height: invoicedHeight, background: '#1c3a4a',
-                      border: '1px solid #2d5a70', borderRadius: '3px 3px 0 0',
-                      cursor: 'default',
-                    }}
-                  />
-                  <div
-                    title={`Collected: ${fmt(m.collected)}`}
-                    style={{
-                      width: 18, height: collectedHeight, background: '#00b49a',
-                      border: '1px solid #00c9ad', borderRadius: '3px 3px 0 0',
-                      cursor: 'default',
-                    }}
-                  />
-                </div>
-                <div style={{ fontSize: 10, color: '#8b949e', textAlign: 'center' }}>{label}</div>
-              </div>
-            );
-          })}
+      {/* Mini charts */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* DSO trend */}
+        <div className="p-5 rounded-xl" style={{ backgroundColor: '#161d2b', border: '1px solid #1e293b' }}>
+          <h3 className="font-semibold text-white mb-4">DSO Trend</h3>
+          <ResponsiveContainer width="100%" height={160}>
+            <LineChart data={chartData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+              <XAxis dataKey="name" tick={{ fill: '#64748b', fontSize: 10 }} />
+              <YAxis tick={{ fill: '#64748b', fontSize: 10 }} />
+              <Tooltip
+                contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '8px' }}
+                labelStyle={{ color: '#94a3b8' }}
+              />
+              <Line type="monotone" dataKey="DSO" stroke="#fbbf24" strokeWidth={2} dot={false} />
+            </LineChart>
+          </ResponsiveContainer>
         </div>
-        <div style={{ display: 'flex', gap: 16, marginTop: 12 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <div style={{ width: 12, height: 12, background: '#1c3a4a', border: '1px solid #2d5a70', borderRadius: 2 }} />
-            <span style={{ fontSize: 11, color: '#8b949e' }}>Invoiced</span>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <div style={{ width: 12, height: 12, background: '#00b49a', borderRadius: 2 }} />
-            <span style={{ fontSize: 11, color: '#8b949e' }}>Collected</span>
-          </div>
-        </div>
-      </div>
 
-      <div style={{ background: '#161b22', border: '1px solid #21262d', borderRadius: 8, overflow: 'hidden' }}>
-        <div style={{ padding: '12px 16px', borderBottom: '1px solid #21262d', background: '#0d1117' }}>
-          <span style={{ color: '#e6edf3', fontSize: 14, fontWeight: 600 }}>Monthly MIS Table</span>
+        {/* Collection efficiency trend */}
+        <div className="p-5 rounded-xl" style={{ backgroundColor: '#161d2b', border: '1px solid #1e293b' }}>
+          <h3 className="font-semibold text-white mb-1">Collection Efficiency Trend</h3>
+          <div className="flex gap-2 mb-3">
+            {(['monthly', '3m'] as const).map(k => (
+              <button
+                key={k}
+                onClick={() => setEffToggle(k)}
+                className="text-xs px-2 py-0.5 rounded"
+                style={{
+                  backgroundColor: effToggle === k ? '#00b49a22' : 'transparent',
+                  color: effToggle === k ? '#00b49a' : '#64748b',
+                  border: `1px solid ${effToggle === k ? '#00b49a44' : 'transparent'}`,
+                }}
+              >
+                {k === 'monthly' ? 'Monthly' : '3M Rolling'}
+              </button>
+            ))}
+          </div>
+          <ResponsiveContainer width="100%" height={140}>
+            <LineChart data={chartData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+              <XAxis dataKey="name" tick={{ fill: '#64748b', fontSize: 10 }} />
+              <YAxis tick={{ fill: '#64748b', fontSize: 10 }} domain={[0, 100]} />
+              <Tooltip
+                contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '8px' }}
+                labelStyle={{ color: '#94a3b8' }}
+                formatter={(v: number) => `${v.toFixed(1)}%`}
+              />
+              <Line type="monotone" dataKey="Efficiency" stroke="#00b49a" strokeWidth={2} dot={false} />
+            </LineChart>
+          </ResponsiveContainer>
         </div>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-          <thead>
-            <tr style={{ borderBottom: '1px solid #21262d' }}>
-              {['Month', 'Invoiced', 'Collected', 'Outstanding', 'Collection %'].map(h => (
-                <th key={h} style={{
-                  padding: '10px 16px', color: '#8b949e', fontWeight: 500,
-                  textAlign: h === 'Month' ? 'left' : 'right',
-                }}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {monthly.map((m, i) => {
-              const pct = m.invoiced > 0 ? Math.round((m.collected / m.invoiced) * 100) : 0;
-              const outstanding = m.invoiced - m.collected;
-              return (
-                <tr key={i} style={{ borderBottom: '1px solid #21262d' }}
-                  onMouseEnter={e => (e.currentTarget.style.background = '#1c2128')}
-                  onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-                >
-                  <td style={{ padding: '10px 16px', color: '#e6edf3', fontWeight: 500 }}>{m.month}</td>
-                  <td style={{ padding: '10px 16px', color: '#e6edf3', textAlign: 'right' }}>{fmt(m.invoiced)}</td>
-                  <td style={{ padding: '10px 16px', color: '#00b49a', textAlign: 'right', fontWeight: 600 }}>{fmt(m.collected)}</td>
-                  <td style={{ padding: '10px 16px', color: outstanding > 0 ? '#ffd43b' : '#51cf66', textAlign: 'right' }}>{fmt(Math.max(0, outstanding))}</td>
-                  <td style={{ padding: '10px 16px', textAlign: 'right' }}>
-                    <span style={{
-                      padding: '2px 10px', borderRadius: 12, fontSize: 11, fontWeight: 600,
-                      background: pct >= 80 ? '#1f3d2c' : pct >= 50 ? '#3d3020' : '#3d1f1f',
-                      color: pct >= 80 ? '#51cf66' : pct >= 50 ? '#ffd43b' : '#ff6b6b',
-                    }}>
-                      {pct}%
-                    </span>
-                  </td>
-                </tr>
-              );
-            })}
-            <tr style={{ borderTop: '2px solid #30363d', background: '#0d1117' }}>
-              <td style={{ padding: '10px 16px', color: '#e6edf3', fontWeight: 700 }}>Total</td>
-              <td style={{ padding: '10px 16px', color: '#e6edf3', textAlign: 'right', fontWeight: 700 }}>{fmt(totalInvoiced)}</td>
-              <td style={{ padding: '10px 16px', color: '#00b49a', textAlign: 'right', fontWeight: 700 }}>{fmt(totalCollected)}</td>
-              <td style={{ padding: '10px 16px', color: '#ffd43b', textAlign: 'right', fontWeight: 700 }}>{fmt(Math.max(0, totalInvoiced - totalCollected))}</td>
-              <td style={{ padding: '10px 16px', textAlign: 'right' }}>
-                <span style={{
-                  padding: '2px 10px', borderRadius: 12, fontSize: 11, fontWeight: 700,
-                  background: overallRate >= 80 ? '#1f3d2c' : overallRate >= 50 ? '#3d3020' : '#3d1f1f',
-                  color: overallRate >= 80 ? '#51cf66' : overallRate >= 50 ? '#ffd43b' : '#ff6b6b',
-                }}>
-                  {overallRate}%
-                </span>
-              </td>
-            </tr>
-          </tbody>
-        </table>
       </div>
     </div>
   );
