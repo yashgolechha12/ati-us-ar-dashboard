@@ -14,6 +14,8 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [fetchedAt, setFetchedAt] = useState<Date | null>(null);
+  
+  // State for cross-tab navigation
   const [drilldownCustomer, setDrilldownCustomer] = useState<string>('');
   const [agingFilter, setAgingFilter] = useState<string>('');
 
@@ -26,67 +28,116 @@ export default function DashboardPage() {
         const errData = await res.json();
         throw new Error(errData.details || errData.error || 'Failed to fetch data');
       }
-      const data: DashboardStats & { fetchedAt?: string } = await res.json();
+      const data: DashboardStats = await res.json();
       setStats(data);
-      setFetchedAt(data.fetchedAt ? new Date(data.fetchedAt) : new Date());
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Unknown error');
+      setFetchedAt(new Date());
+    } catch (err) {
+      setError(String(err));
     } finally {
       setLoading(false);
     }
   }, []);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
-  function handleDrilldown(customer: string) {
+  const handleJumpToCustomer = (customer: string) => {
     setDrilldownCustomer(customer);
     setActiveTab(2);
-  }
-
-  const counts = {
-    ageing: stats ? stats.topCustomers.filter(c => c.outstanding > 0).length : 0,
-    collections: stats ? stats.collectionQueue.length : 0,
-    mis: stats ? stats.monthly.length : 0,
   };
 
-  if (loading && !stats) {
-    return (
-      <div style={{ minHeight: '100vh', background: '#0d1117', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
-        <div style={{ width: 40, height: 40, border: '3px solid #21262d', borderTop: '3px solid #00b49a', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
-        <div style={{ color: '#64748b', fontSize: 14 }}>Loading dashboard data...</div>
-        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-      </div>
-    );
-  }
+  const handleJumpToAging = (filter: string) => {
+    setAgingFilter(filter);
+    setActiveTab(1);
+  };
 
-  if (error && !stats) {
-    return (
-      <div style={{ minHeight: '100vh', background: '#0d1117', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
-        <div style={{ color: '#ef4444', fontSize: 18, fontWeight: 600 }}>Failed to load data</div>
-        <div style={{ color: '#8b949e', fontSize: 14, maxWidth: 500, textAlign: 'center' }}>{error}</div>
-        <button onClick={fetchData} style={{ marginTop: 8, padding: '8px 20px', background: '#00b49a', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 600 }}>
-          Retry
-        </button>
-      </div>
-    );
-  }
+  const tabCounts = stats ? [
+    null, // Overview - no count
+    stats.customers.length,
+    null,
+    stats.overdueCount + stats.customers.filter(c => {
+      const today = new Date();
+      return c.invoices.some(inv => {
+        const due = new Date(inv.due_date);
+        const diff = Math.ceil((due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+        return diff >= -30 && diff <= 0;
+      });
+    }).length,
+    stats.monthly.length,
+  ] : [null, null, null, null, null];
 
   return (
-    <div style={{ minHeight: '100vh', background: '#0d1117' }}>
+    <div className="min-h-screen" style={{backgroundColor: '#0b0f14'}}>
       <Header
-        activeTab={activeTab}
-        setActiveTab={setActiveTab}
         loading={loading}
         fetchedAt={fetchedAt}
         onRefresh={fetchData}
-        counts={counts}
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+        tabCounts={tabCounts}
       />
-      <main style={{ padding: '24px' }}>
-        {stats && activeTab === 0 && <TabOverview stats={stats} onDrilldown={handleDrilldown} />}
-        {stats && activeTab === 1 && <TabCustomerAging stats={stats} onDrilldown={handleDrilldown} filter={agingFilter} setFilter={setAgingFilter} />}
-        {stats && activeTab === 2 && <TabDrilldown stats={stats} selectedCustomer={drilldownCustomer} setSelectedCustomer={setDrilldownCustomer} />}
-        {stats && activeTab === 3 && <TabCollections stats={stats} />}
-        {stats && activeTab === 4 && <TabMIS stats={stats} />}
+      
+      <main className="pt-20 px-4 md:px-6 pb-8 max-w-screen-2xl mx-auto">
+        {loading && !stats && (
+          <div className="flex flex-col items-center justify-center py-32 gap-4">
+            <div className="w-10 h-10 rounded-full border-4 border-teal-500 border-t-transparent spinner"
+              style={{borderColor: '#00b49a', borderTopColor: 'transparent'}}></div>
+            <p style={{color: '#64748b'}}>Loading dashboard data...</p>
+          </div>
+        )}
+        
+        {error && !stats && (
+          <div className="flex flex-col items-center justify-center py-32 gap-4">
+            <div className="text-4xl">⚠️</div>
+            <p className="text-lg font-semibold" style={{color: '#f87171'}}>Failed to load data</p>
+            <p className="text-sm max-w-md text-center" style={{color: '#64748b'}}>{error}</p>
+            <button
+              onClick={fetchData}
+              className="px-6 py-2 rounded-lg font-medium text-white"
+              style={{backgroundColor: '#00b49a'}}
+            >
+              Retry
+            </button>
+          </div>
+        )}
+        
+        {stats && (
+          <>
+            {activeTab === 0 && (
+              <TabOverview
+                stats={stats}
+                loading={loading}
+                onJumpToCustomer={handleJumpToCustomer}
+                onJumpToAging={handleJumpToAging}
+              />
+            )}
+            {activeTab === 1 && (
+              <TabCustomerAging
+                stats={stats}
+                initialFilter={agingFilter}
+                onFilterUsed={() => setAgingFilter('')}
+                onJumpToCustomer={handleJumpToCustomer}
+              />
+            )}
+            {activeTab === 2 && (
+              <TabDrilldown
+                stats={stats}
+                initialCustomer={drilldownCustomer}
+              />
+            )}
+            {activeTab === 3 && (
+              <TabCollections
+                stats={stats}
+              />
+            )}
+            {activeTab === 4 && (
+              <TabMIS
+                stats={stats}
+              />
+            )}
+          </>
+        )}
       </main>
     </div>
   );
